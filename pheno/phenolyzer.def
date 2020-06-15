@@ -1,0 +1,15 @@
+Bootstrap: docker
+From: sghignone/alpine-bioperl
+
+%files
+    phenolyzer.sh /
+
+%post
+    apk update
+    apk add bash git
+    git clone https://github.com/WGLab/phenolyzer
+    cpanm JSON
+    rm -rf /var/cache/apk/*
+
+%runscript
+    exec /phenolyzer.sh "$@"
