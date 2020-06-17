@@ -4,6 +4,7 @@ const querystring = require('querystring');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { ensureCacheDir, buildCachePath } = require('./cache.js');
 
 
 (async () => {
@@ -32,7 +33,7 @@ const path = require('path');
 
     res.setHeader('Content-Type', 'application/json');
 
-    const cachePath = path.join('cache', encodeURIComponent(params.term));
+    const cachePath = buildCachePath(params.term);
 
     if (pending[cachePath]) {
       res.write(JSON.stringify({
@@ -69,8 +70,8 @@ const path = require('path');
         await fs.promises.writeFile(cachePath, data);
         delete pending[cachePath];
       });
+
+      // TODO: delete pending on error
     }
   }
 })();
-
-
