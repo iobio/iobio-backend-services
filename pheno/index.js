@@ -17,13 +17,10 @@ const { ensureCacheDir, buildCachePath } = require('./cache.js');
   http.createServer((req, res) => {
     const urlObj = url.parse(req.url); 
 
-    console.log(urlObj);
     if (urlObj.pathname === '/phenolyzer' || urlObj.pathname === '/phenolyzer/') {
       handlePhenolyzer(req, res);
     }
     else {
-      res.statusCode = 404;
-      res.write("Not found");
       res.end();
     }
   }).listen(9001);
@@ -41,6 +38,7 @@ const { ensureCacheDir, buildCachePath } = require('./cache.js');
       return;
     }
 
+    res.setHeader('Cache-Control', 'max-age=86400');
     res.setHeader('Content-Type', 'application/json');
 
     const cachePath = buildCachePath(params.term);
