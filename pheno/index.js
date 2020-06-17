@@ -38,6 +38,7 @@ const { ensureCacheDir, buildCachePath } = require('./cache.js');
       return;
     }
 
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cache-Control', 'max-age=86400');
     res.setHeader('Content-Type', 'application/json');
 
