@@ -15,7 +15,17 @@ const { ensureCacheDir, buildCachePath } = require('./cache.js');
   }
 
   http.createServer((req, res) => {
-    handlePhenolyzer(req, res);
+    const urlObj = url.parse(req.url); 
+
+    console.log(urlObj);
+    if (urlObj.pathname === '/phenolyzer' || urlObj.pathname === '/phenolyzer/') {
+      handlePhenolyzer(req, res);
+    }
+    else {
+      res.statusCode = 404;
+      res.write("Not found");
+      res.end();
+    }
   }).listen(9001);
 
   const pending = {};
