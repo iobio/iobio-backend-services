@@ -52,6 +52,14 @@ const { ensureCacheDir, buildCachePath } = require('./cache.js');
       return;
     }
 
+    if (params.refresh === 'true') {
+      try {
+        await fs.promises.unlink(cachePath);
+      }
+      catch (e) {
+      }
+    }
+
     try {
       const stat = await fs.promises.stat(cachePath);
       const data = await fs.promises.readFile(cachePath, 'utf8');
