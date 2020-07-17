@@ -45,6 +45,7 @@ const { ensureCacheDir, buildCachePath } = require('./cache.js');
     const cachePath = buildCachePath(params.term);
 
     if (pending[cachePath]) {
+      res.setHeader('Cache-Control', 'no-store');
       res.write(JSON.stringify({
         record: 'pending',
       }));
@@ -69,6 +70,7 @@ const { ensureCacheDir, buildCachePath } = require('./cache.js');
       res.end();
     }
     catch(e) {
+      res.setHeader('Cache-Control', 'no-store');
       pending[cachePath] = true;
       res.write(JSON.stringify({
         record: 'queued',
