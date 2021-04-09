@@ -86,6 +86,7 @@ const { ensureCacheDir, buildCachePath } = require('./cache.js');
       });
 
       proc.stdout.on('end', async () => {
+        await ensureCacheDir(params.term);
         await fs.promises.writeFile(cachePath, data);
         delete pending[cachePath];
       });
