@@ -86,8 +86,14 @@ const { ensureCacheDir, buildCachePath } = require('./cache.js');
       });
 
       proc.stdout.on('end', async () => {
-        await ensureCacheDir(params.term);
-        await fs.promises.writeFile(cachePath, data);
+
+        if (proc.exitCode === 0) {
+          await ensureCacheDir(params.term);
+          await fs.promises.writeFile(cachePath, data);
+        }
+        else {
+          console.error("Phenolyzer failed for term:", `"${params.term}"`);
+        }
         delete pending[cachePath];
       });
 
