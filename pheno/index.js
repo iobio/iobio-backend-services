@@ -85,7 +85,16 @@ const { ensureCacheDir, buildCachePath } = require('./cache.js');
         data += chunk;
       });
 
+      let ended = false;
       proc.stdout.on('end', async () => {
+        ended = true;
+      });
+
+      proc.on('exit', async () => {
+
+        if (!ended) {
+          console.error("Attempted to write before stream ended");
+        }
 
         if (proc.exitCode === 0) {
           await ensureCacheDir(params.term);
