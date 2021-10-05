@@ -17,6 +17,10 @@ const { ensureCacheDir, buildCachePath } = require('./cache.js');
   http.createServer((req, res) => {
     const urlObj = url.parse(req.url); 
 
+    const ts = new Date().toISOString();
+
+    console.log(`${ts}\t${req.method}\t${urlObj.path}`);
+
     if (urlObj.pathname === '/phenolyzer' || urlObj.pathname === '/phenolyzer/') {
       handlePhenolyzer(req, res);
     }
