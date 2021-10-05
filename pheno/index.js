@@ -19,7 +19,9 @@ const { ensureCacheDir, buildCachePath } = require('./cache.js');
 
     const ts = new Date().toISOString();
 
-    console.log(`${ts}\t${req.method}\t${urlObj.path}`);
+    const ip = req.headers['x-forwarded-for'] ? req.headers['x-forwarded-for'] : req.socket.remoteAddress;
+
+    console.log(`${ts}\t${ip}\t${req.method}\t${urlObj.path}`);
 
     if (urlObj.pathname === '/phenolyzer' || urlObj.pathname === '/phenolyzer/') {
       handlePhenolyzer(req, res);
