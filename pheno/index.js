@@ -4,7 +4,6 @@ import querystring from 'querystring';
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { buildCachePath } from './cache.js';
 import * as flache from 'flache';
 
 
@@ -50,6 +49,7 @@ async function handlePhenolyzer(req, res) {
   const entry = await cache.get(params.term);
 
   if (entry && !entry.content) {
+    // TODO: check if the entry has been pending for too long and redo if so
     res.setHeader('Cache-Control', 'no-store');
     res.write(JSON.stringify({
       record: 'pending',
