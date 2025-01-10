@@ -1,18 +1,16 @@
-const http = require('http');
-const url = require('url');
-const querystring = require('querystring');
-const { spawn } = require('child_process');
-const fs = require('fs');
-const path = require('path');
-const { ensureCacheDir, buildCachePath } = require('./cache.js');
+import http from 'http';
+import url from 'url';
+import querystring from 'querystring';
+import { spawn } from 'child_process';
+import fs from 'fs';
+import path from 'path';
+import { buildCachePath } from './cache.js';
+import * as flache from 'flache';
 
 
 (async () => {
-  try {
-    await fs.promises.mkdir('./cache');
-  }
-  catch (e) {
-  }
+
+  const cache = new flache.Cache();
 
   http.createServer((req, res) => {
     const urlObj = url.parse(req.url); 
@@ -31,8 +29,6 @@ const { ensureCacheDir, buildCachePath } = require('./cache.js');
     }
   }).listen(9001);
 
-  const pending = {};
-
   async function handlePhenolyzer(req, res) {
     const urlObj = url.parse(req.url); 
     const params = querystring.parse(urlObj.query);
@@ -48,71 +44,71 @@ const { ensureCacheDir, buildCachePath } = require('./cache.js');
     res.setHeader('Cache-Control', 'max-age=86400');
     res.setHeader('Content-Type', 'application/json');
 
-    const cachePath = buildCachePath(params.term);
 
-    if (pending[cachePath]) {
+    if (params.refresh === 'true') {
+      await cache.delete(params.term);
+    }
+
+    const entry = await cache.get(params.term);
+
+    if (entry && !entry.content) {
       res.setHeader('Cache-Control', 'no-store');
       res.write(JSON.stringify({
         record: 'pending',
       }));
       res.end();
+
       return;
     }
 
-    if (params.refresh === 'true') {
-      try {
-        await fs.promises.unlink(cachePath);
-      }
-      catch (e) {
-      }
-    }
-
-    try {
-      const stat = await fs.promises.stat(cachePath);
-      const data = await fs.promises.readFile(cachePath, 'utf8');
+    if (entry && entry.content) {
       res.write(JSON.stringify({
-        record: data,
-      }));
-      res.end();
-    }
-    catch(e) {
-      res.setHeader('Cache-Control', 'no-store');
-      pending[cachePath] = true;
-      res.write(JSON.stringify({
-        record: 'queued',
+        record: entry.content,
       }));
       res.end();
 
-      const proc = spawn('./phenolyzer.sif', [params.term]);
-      proc.stdout.setEncoding('utf8');
-
-      let data = '';
-      proc.stdout.on('data', (chunk) => {
-        data += chunk;
-      });
-
-      let ended = false;
-      proc.stdout.on('end', async () => {
-        ended = true;
-      });
-
-      proc.on('exit', async () => {
-
-        if (!ended) {
-          console.error("Attempted to write before stream ended");
-        }
-
-        if (proc.exitCode === 0) {
-          await ensureCacheDir(params.term);
-          await fs.promises.writeFile(cachePath, data);
-        }
-        else {
-          console.error("Phenolyzer failed for term:", `"${params.term}"`);
-        }
-        delete pending[cachePath];
-      });
-
-      // TODO: delete pending on error
+      return;
     }
+
+    res.setHeader('Cache-Control', 'no-store');
+    res.write(JSON.stringify({
+      record: 'queued',
+    }));
+    res.end();
+
+    await cache.set(params.term, {
+      content: null,
+    });
+
+    const proc = spawn('./phenolyzer.sif', [params.term]);
+    proc.stdout.setEncoding('utf8');
+
+    let data = '';
+    proc.stdout.on('data', (chunk) => {
+      data += chunk;
+    });
+
+    let ended = false;
+    proc.stdout.on('end', async () => {
+      ended = true;
+    });
+
+    proc.on('exit', async () => {
+
+      if (!ended) {
+        console.error("Attempted to write before stream ended");
+      }
+
+      if (proc.exitCode === 0) {
+        await cache.set(params.term, {
+          content: data,
+        });
+      }
+      else {
+        console.error("Phenolyzer failed for term:", `"${params.term}"`);
+      }
+    });
+
+    // TODO: delete pending on error
   }
 })();
