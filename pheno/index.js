@@ -6,8 +6,15 @@ import fs from 'fs';
 import path from 'path';
 import * as flache from 'flache';
 
+import { argv } from 'node:process';
+const port = argv[2] ? argv[2] : 9001;
+const cacheDir = argv[3] ? argv[3] : 'cache';
 
-const cache = new flache.Cache();
+const STALE_PENDING_MS = 2000;
+
+const cache = new flache.Cache({
+  path: cacheDir,
+});
 
 http.createServer((req, res) => {
   const urlObj = url.parse(req.url); 
@@ -24,7 +31,7 @@ http.createServer((req, res) => {
   else {
     res.end();
   }
-}).listen(9001);
+}).listen(port);
 
 async function handlePhenolyzer(req, res) {
   const urlObj = url.parse(req.url); 
@@ -41,23 +48,11 @@ async function handlePhenolyzer(req, res) {
   res.setHeader('Cache-Control', 'max-age=86400');
   res.setHeader('Content-Type', 'application/json');
 
-
   if (params.refresh === 'true') {
     await cache.delete(params.term);
   }
 
   const entry = await cache.get(params.term);
-
-  if (entry && !entry.content) {
-    // TODO: check if the entry has been pending for too long and redo if so
-    res.setHeader('Cache-Control', 'no-store');
-    res.write(JSON.stringify({
-      record: 'pending',
-    }));
-    res.end();
-
-    return;
-  }
 
   if (entry && entry.content) {
     res.write(JSON.stringify({
@@ -67,16 +62,44 @@ async function handlePhenolyzer(req, res) {
 
     return;
   }
+  else if (entry && !entry.content) {
+    res.setHeader('Cache-Control', 'no-store');
+    res.write(JSON.stringify({
+      record: 'pending',
+    }));
+    res.end();
 
-  res.setHeader('Cache-Control', 'no-store');
-  res.write(JSON.stringify({
-    record: 'queued',
-  }));
-  res.end();
+    // Check if the pending cache entry is stale (ie the node handling it may
+    // have crashed). If so, delete it and handle in this node.
+    const now = new Date();
+    const lastUpdated = new Date(entry.last_updated);
+    const diff = now - lastUpdated;
 
-  await cache.set(params.term, {
-    content: null,
-  });
+    if (diff < STALE_PENDING_MS) { 
+      // Haven't timed out yet
+      return;
+    } 
+  } 
+  else {
+    res.setHeader('Cache-Control', 'no-store');
+    res.write(JSON.stringify({
+      record: 'queued',
+    }));
+    res.end();
+  }
+
+  async function updatePending() {
+    await cache.set(params.term, {
+      content: null,
+      //last_updated: (new Date()).toISOString(),
+      last_updated: new Date(),
+    });
+  }
+
+  // Update the pending request regularly so other nodes know that we are
+  // still handling it
+  updatePending();
+  const intId = setInterval(updatePending, 1000);
 
   const proc = spawn('./phenolyzer.sif', [params.term]);
   proc.stdout.setEncoding('utf8');
@@ -93,6 +116,8 @@ async function handlePhenolyzer(req, res) {
 
   proc.on('exit', async () => {
 
+    clearInterval(intId);
+
     if (!ended) {
       console.error("Attempted to write before stream ended");
     }
@@ -104,8 +129,7 @@ async function handlePhenolyzer(req, res) {
     }
     else {
       console.error("Phenolyzer failed for term:", `"${params.term}"`);
+      await cache.delete(params.term);
     }
   });
-
-  // TODO: delete pending on error
 }
